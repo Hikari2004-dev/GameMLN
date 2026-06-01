@@ -89,6 +89,40 @@ body {
 	text-align: center;
 	z-index: 1;
 }
+
+#mobile-space-btn {
+	position: fixed;
+	right: 1rem;
+	bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+	width: 5.5rem;
+	height: 5.5rem;
+	border: 2px solid rgba(255, 255, 255, 0.5);
+	border-radius: 999px;
+	background: rgba(20, 20, 20, 0.35);
+	color: #fff;
+	font-size: 1rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+	touch-action: none;
+	user-select: none;
+	-webkit-user-select: none;
+	z-index: 10;
+	display: none;
+}
+
+#mobile-space-btn.is-active {
+	transform: scale(0.96);
+	background: rgba(255, 255, 255, 0.2);
+	border-color: rgba(255, 255, 255, 0.8);
+}
+
+@media (hover: none) and (pointer: coarse) {
+	#mobile-space-btn {
+		display: block;
+	}
+}
 		</style>
 		<link id="-gd-engine-icon" rel="icon" type="image/png" href="gamemln.icon.png" />
 <link rel="apple-touch-icon" href="gamemln.apple-touch-icon.png"/>
@@ -109,6 +143,8 @@ body {
 			<div id="status-notice"></div>
 		</div>
 
+		<button id="mobile-space-btn" type="button" aria-label="Space">SPACE</button>
+
 		<script src="gamemln.js"></script>
 		<script>
 const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"gamemln","experimentalVK":false,"fileSizes":{"gamemln.pck":15463588,"gamemln.wasm":35754592},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
@@ -119,6 +155,7 @@ const engine = new Engine(GODOT_CONFIG);
 	const statusOverlay = document.getElementById('status');
 	const statusProgress = document.getElementById('status-progress');
 	const statusNotice = document.getElementById('status-notice');
+	const mobileSpaceBtn = document.getElementById('mobile-space-btn');
 
 	let initializing = true;
 	let statusMode = '';
@@ -160,6 +197,54 @@ const engine = new Engine(GODOT_CONFIG);
 		}
 		setStatusMode('notice');
 		initializing = false;
+	}
+
+	let mobileSpacePressed = false;
+	function dispatchSpaceEvent(type) {
+		const keyboardEvent = new KeyboardEvent(type, {
+			key: ' ',
+			code: 'Space',
+			keyCode: 32,
+			which: 32,
+			bubbles: true,
+			cancelable: true,
+		});
+		document.dispatchEvent(keyboardEvent);
+		window.dispatchEvent(keyboardEvent);
+		const canvas = document.getElementById('canvas');
+		if (canvas) {
+			canvas.dispatchEvent(keyboardEvent);
+		}
+	}
+
+	if (mobileSpaceBtn) {
+		mobileSpaceBtn.addEventListener('contextmenu', function (event) {
+			event.preventDefault();
+		});
+
+		mobileSpaceBtn.addEventListener('pointerdown', function (event) {
+			event.preventDefault();
+			if (mobileSpacePressed) {
+				return;
+			}
+			mobileSpacePressed = true;
+			mobileSpaceBtn.classList.add('is-active');
+			dispatchSpaceEvent('keydown');
+		});
+
+		const releaseMobileSpace = function (event) {
+			event.preventDefault();
+			if (!mobileSpacePressed) {
+				return;
+			}
+			mobileSpacePressed = false;
+			mobileSpaceBtn.classList.remove('is-active');
+			dispatchSpaceEvent('keyup');
+		};
+
+		mobileSpaceBtn.addEventListener('pointerup', releaseMobileSpace);
+		mobileSpaceBtn.addEventListener('pointercancel', releaseMobileSpace);
+		mobileSpaceBtn.addEventListener('pointerleave', releaseMobileSpace);
 	}
 
 	const missing = Engine.getMissingFeatures({

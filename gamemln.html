@@ -112,6 +112,65 @@ body {
 	display: none;
 }
 
+#mobile-controls {
+	position: fixed;
+	left: 1rem;
+	bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+	display: none;
+	grid-template-columns: repeat(3, 3.25rem);
+	grid-template-rows: repeat(2, 3.25rem);
+	gap: 0.5rem;
+	z-index: 10;
+}
+
+.mobile-control-btn {
+	appearance: none;
+	border: 2px solid rgba(255, 255, 255, 0.5);
+	border-radius: 0.9rem;
+	background: rgba(20, 20, 20, 0.35);
+	color: #fff;
+	font-size: 1.1rem;
+	font-weight: 700;
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+	touch-action: none;
+	user-select: none;
+	-webkit-user-select: none;
+	padding: 0;
+	margin: 0;
+	min-width: 0;
+	min-height: 0;
+	width: 100%;
+	height: 100%;
+	-webkit-tap-highlight-color: transparent;
+}
+
+.mobile-control-btn.is-active {
+	transform: scale(0.96);
+	background: rgba(255, 255, 255, 0.2);
+	border-color: rgba(255, 255, 255, 0.8);
+}
+
+.mobile-control-up {
+	grid-column: 2;
+	grid-row: 1;
+}
+
+.mobile-control-left {
+	grid-column: 1;
+	grid-row: 2;
+}
+
+.mobile-control-down {
+	grid-column: 2;
+	grid-row: 2;
+}
+
+.mobile-control-right {
+	grid-column: 3;
+	grid-row: 2;
+}
+
 #mobile-space-btn.is-active {
 	transform: scale(0.96);
 	background: rgba(255, 255, 255, 0.2);
@@ -119,6 +178,10 @@ body {
 }
 
 @media (hover: none) and (pointer: coarse) {
+	#mobile-controls {
+		display: grid;
+	}
+
 	#mobile-space-btn {
 		display: block;
 	}
@@ -143,6 +206,13 @@ body {
 			<div id="status-notice"></div>
 		</div>
 
+		<div id="mobile-controls" aria-label="Movement controls">
+			<button class="mobile-control-btn mobile-control-up" type="button" data-key-code="ArrowUp" aria-label="Move up">▲</button>
+			<button class="mobile-control-btn mobile-control-left" type="button" data-key-code="ArrowLeft" aria-label="Move left">◀</button>
+			<button class="mobile-control-btn mobile-control-down" type="button" data-key-code="ArrowDown" aria-label="Move down">▼</button>
+			<button class="mobile-control-btn mobile-control-right" type="button" data-key-code="ArrowRight" aria-label="Move right">▶</button>
+		</div>
+
 		<button id="mobile-space-btn" type="button" aria-label="Space">SPACE</button>
 
 		<script src="gamemln.js"></script>
@@ -155,7 +225,9 @@ const engine = new Engine(GODOT_CONFIG);
 	const statusOverlay = document.getElementById('status');
 	const statusProgress = document.getElementById('status-progress');
 	const statusNotice = document.getElementById('status-notice');
+	const mobileControls = document.getElementById('mobile-controls');
 	const mobileSpaceBtn = document.getElementById('mobile-space-btn');
+	const mobileControlButtons = mobileControls ? Array.from(mobileControls.querySelectorAll('.mobile-control-btn')) : [];
 
 	let initializing = true;
 	let statusMode = '';
@@ -199,13 +271,13 @@ const engine = new Engine(GODOT_CONFIG);
 		initializing = false;
 	}
 
-	let mobileSpacePressed = false;
-	function dispatchSpaceEvent(type) {
+	const activePointers = new Map();
+	function dispatchKeyEvent(type, code, key) {
 		const keyboardEvent = new KeyboardEvent(type, {
-			key: ' ',
-			code: 'Space',
-			keyCode: 32,
-			which: 32,
+			key: key,
+			code: code,
+			keyCode: code === 'Space' ? 32 : 0,
+			which: code === 'Space' ? 32 : 0,
 			bubbles: true,
 			cancelable: true,
 		});
@@ -215,6 +287,63 @@ const engine = new Engine(GODOT_CONFIG);
 		if (canvas) {
 			canvas.dispatchEvent(keyboardEvent);
 		}
+	}
+
+	function createMobileKeyHandler(button, code, key) {
+		button.addEventListener('contextmenu', function (event) {
+			event.preventDefault();
+		});
+
+		button.addEventListener('pointerdown', function (event) {
+			event.preventDefault();
+			if (activePointers.has(button)) {
+				return;
+			}
+			activePointers.set(button, event.pointerId);
+			button.classList.add('is-active');
+			if (button.setPointerCapture) {
+				button.setPointerCapture(event.pointerId);
+			}
+			dispatchKeyEvent('keydown', code, key);
+		});
+
+		const release = function (event) {
+			event.preventDefault();
+			const pointerId = activePointers.get(button);
+			if (pointerId == null) {
+				return;
+			}
+			activePointers.delete(button);
+			button.classList.remove('is-active');
+			if (button.hasPointerCapture && button.hasPointerCapture(pointerId)) {
+				button.releasePointerCapture(pointerId);
+			}
+			dispatchKeyEvent('keyup', code, key);
+		};
+
+		button.addEventListener('pointerup', release);
+		button.addEventListener('pointercancel', release);
+		button.addEventListener('pointerleave', release);
+	}
+
+	if (mobileControlButtons.length > 0) {
+		mobileControlButtons.forEach(function (button) {
+			const code = button.getAttribute('data-key-code');
+			const keyMap = {
+				ArrowUp: 'ArrowUp',
+				ArrowDown: 'ArrowDown',
+				ArrowLeft: 'ArrowLeft',
+				ArrowRight: 'ArrowRight',
+			};
+			if (code && keyMap[code]) {
+				createMobileKeyHandler(button, code, keyMap[code]);
+			}
+		});
+	}
+
+	let mobileSpacePressed = false;
+	function dispatchSpaceEvent(type) {
+		dispatchKeyEvent(type, 'Space', ' ');
 	}
 
 	if (mobileSpaceBtn) {
